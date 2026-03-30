@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dara"
+version = "0.1.0"
+description = "Jogo Dara com comunicação TCP (UI Pygame)"
+requires-python = ">=3.10"
+dependencies = [
+    "pygame>=2.5.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["dara*"]
+
+[project.scripts]
+dara-server = "dara.server.main:main"
+dara-client = "dara.client.main:main"
