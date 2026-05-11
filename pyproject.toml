@@ -5,10 +5,11 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "dara"
 version = "0.1.0"
-description = "Jogo Dara com comunicação TCP (UI Pygame)"
+description = "Jogo Dara com comunicação Pyro5 RPC/RMI (UI Pygame)"
 requires-python = ">=3.10"
 dependencies = [
     "pygame>=2.5.0",
+    "pyro5>=5.15",
 ]
 
 [tool.setuptools.packages.find]

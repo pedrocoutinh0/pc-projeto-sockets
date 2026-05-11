@@ -1,9 +1,9 @@
 """
-Contrato de aplicação: tipos de mensagem + JSON.
+Contrato de aplicação: tipos de mensagem nos payloads (STATE, CHAT, …).
 
-Fluxo mental: cliente e servidor trocam dicts com chave "type" igual a um
-MessageType.value. serialize/deserialize são o passo final antes/depois dos bytes
-no socket (TCP acrescenta '\\n' por mensagem em transport/tcp.py).
+Com Pyro5, estes dicts já não atravessam sockets geridos manualmente: passam a ser
+argumentos e valores das chamadas remotas e dos callbacks receber(). Mantêm-se
+para compatibilidade com GameRoom e com a UI que interpreta o campo \"type\".
 """
 import json
 from enum import Enum

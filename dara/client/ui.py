@@ -1,16 +1,16 @@
 """
 Cliente Pygame — fluxo mental para debug:
 
-1) run_ui regista connection.on_message(on_net). A thread de TcpConnection chama
-   on_net(msg) → msg_queue.put (nunca desenhar aqui).
+1) run_ui regista session.on_message(on_net). O Pyro invoca receber() no cliente,
+   que por sua vez chama on_net(msg) → msg_queue.put (nunca desenhar aqui).
 
 2) Cada frame: process_network() esvazia a fila (get_nowait) e aplica START/
    STATE/CHAT/ERROR ao estado local (board, phase, current_turn, …).
 
-3) Eventos (rato/tecla): click_cell / send_chat chamam connection.send({...}).
-   O servidor valida; resposta vem em STATE ou ERROR na fila.
+3) Eventos (rato/tecla): click_cell / send_chat chamam métodos remotos na sessão
+   Pyro (RPC), não strings nem dicts de rede manuais.
 
-4) apply_state() copia o JSON do servidor para variáveis usadas no desenho.
+4) apply_state() copia o payload enviado pelo servidor para variáveis de UI.
 
 Layout/desenho: constantes no topo, build_ui_layout recalcula geometria ao
 redimensionar; funções _draw_* montam o frame.
@@ -765,8 +765,8 @@ def _draw_chat_panel(
     )
 
 
-def run_ui(connection: Any) -> None:
-    # connection: implementa Connection (send + on_message). Any evita imports circulares.
+def run_ui(session: Any) -> None:
+    # session: DaraPyroSession (on_message + métodos remotos). Any evita imports circulares.
     pygame.init()
     try:
         pygame.display.set_caption("Dara — F11 tela cheia")
@@ -798,7 +798,7 @@ def run_ui(connection: Any) -> None:
         def on_net(msg: dict) -> None:
             msg_queue.put(msg)
 
-        connection.on_message(on_net)
+        session.on_message(on_net)
 
         my_player: int | None = None
         board: list[list[int | None]] = [[None] * COLS for _ in range(ROWS)]
@@ -925,7 +925,14 @@ def run_ui(connection: Any) -> None:
             if nickname_done:
                 return
             chosen_nick = nick_buffer.strip()[:NICKNAME_MAX_LEN]
-            connection.send({"type": MessageType.HELLO.value, "nick": chosen_nick})
+            try:
+                session.registar_apelido(chosen_nick)
+            except Exception as exc:
+                set_status(
+                    "Não foi possível registar no servidor.",
+                    str(exc)[:120],
+                )
+                return
             nickname_done = True
 
         def process_network() -> None:
@@ -940,6 +947,8 @@ def run_ui(connection: Any) -> None:
                 if kind == MessageType.START.value:
                     p = msg.get("player")
                     my_player = int(p) if p is not None else None
+                    if my_player is not None:
+                        session.bind_player_id(my_player)
                     pygame.display.set_caption(f"Dara — Jogador {my_player}")
                     apply_state(msg)
                     set_status(
@@ -983,7 +992,7 @@ def run_ui(connection: Any) -> None:
             t = chat_input.strip()
             if not t:
                 return
-            connection.send({"type": MessageType.CHAT.value, "text": t})
+            session.enviar_mensagem(t)
             chat_lines.append(f"Você: {t}")
             while len(chat_lines) > CHAT_LINES_MAX:
                 chat_lines.pop(0)
@@ -1002,7 +1011,7 @@ def run_ui(connection: Any) -> None:
             cell = board[row][col]
             if phase == Phase.PLACEMENT:
                 if cell is None:
-                    connection.send({"type": MessageType.PLACE.value, "row": row, "col": col})
+                    session.colocar_peca(row, col)
                 else:
                     set_status(
                         "Essa casa já está ocupada!",
@@ -1012,11 +1021,7 @@ def run_ui(connection: Any) -> None:
             if awaiting_capture:
                 opponent = 3 - my_player
                 if cell == opponent:
-                    connection.send({
-                        "type": MessageType.CAPTURE.value,
-                        "row": row,
-                        "col": col,
-                    })
+                    session.escolher_captura(row, col)
                 else:
                     set_status(
                         "Você precisa clicar numa peça do adversário!",
@@ -1042,11 +1047,7 @@ def run_ui(connection: Any) -> None:
                 set_status("Seleção cancelada.", "Escolha outra peça quando quiser.")
                 return
             if cell is None and abs(sr - row) + abs(sc - col) == 1:
-                connection.send({
-                    "type": MessageType.MOVE.value,
-                    "from": [sr, sc],
-                    "to": [row, col],
-                })
+                session.mover_peca(sr, sc, row, col)
                 selected = None
             else:
                 set_status(
@@ -1122,7 +1123,7 @@ def run_ui(connection: Any) -> None:
                     if winner is not None and _rematch_button_rect(lay).collidepoint(
                         event.pos
                     ):
-                        connection.send({"type": MessageType.REMATCH.value})
+                        session.votar_revanche()
                     elif (
                         my_player is not None
                         and resign_rect.collidepoint(event.pos)
@@ -1151,7 +1152,7 @@ def run_ui(connection: Any) -> None:
                         and winner is None
                         and resign_confirm
                     ):
-                        connection.send({"type": MessageType.RESIGN.value})
+                        session.desistir()
                         set_status("Desistência enviada.", "Obrigado por jogar — até breve!")
                         resign_confirm = False
                     elif _chat_input_rect(chat_y, lay).collidepoint(event.pos):
