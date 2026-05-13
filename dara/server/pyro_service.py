@@ -4,9 +4,10 @@ Servidor de jogo exposto via Pyro5: implementação remota da API JogoRemoto.
 Antes: mensagens TCP manuais eram interpretadas em handler.py (dict com "type").
 Agora: cada operação é um método remoto; o Pyro encaminha a chamada para este
 objeto, que valida e delega em GameRoom. As atualizações para os clientes
-continuam a ser o mesmo payload dict (STATE, CHAT, …), mas enviadas através do
-callback remoto receber() em cada NotificadorCliente — modelo análogo a RMI
-callback. O cliente não conhece GameRoom nem sockets; só vê o proxy remoto.
+continuam a ser o mesmo payload dict no núcleo GameRoom, mas o PyroClientEndpoint
+mapeia cada tipo para uma RPC nomeada no cliente (notificar_inicio,
+atualizar_estado, notificar_chat, notificar_erro) — callbacks no estilo interface
+RMI. O cliente não conhece GameRoom nem sockets; só vê o proxy remoto.
 """
 from __future__ import annotations
 
@@ -49,7 +50,24 @@ class PyroClientEndpoint:
         # Novo Proxy por envio: workers do daemon Pyro podem ser threads diferentes;
         # reutilizar o mesmo Proxy entre threads gera erro de "owner" no cliente.
         notifier = Pyro5.api.Proxy(self._uri_notificador)
-        notifier.receber(msg)
+        kind = msg.get("type")
+        if kind == MessageType.START.value:
+            notifier.notificar_inicio(msg)
+        elif kind == MessageType.STATE.value:
+            notifier.atualizar_estado(msg)
+        elif kind == MessageType.CHAT.value:
+            notifier.notificar_chat(
+                int(msg.get("from", 0)),
+                str(msg.get("nick", "")),
+                str(msg.get("text", "")),
+            )
+        elif kind == MessageType.ERROR.value:
+            notifier.notificar_erro(str(msg.get("message", "")))
+        else:
+            logger.warning(
+                "Tipo de mensagem desconhecido para callback RPC: %s",
+                kind,
+            )
 
 
 @Pyro5.server.expose

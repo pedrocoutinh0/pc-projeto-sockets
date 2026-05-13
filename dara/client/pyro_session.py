@@ -3,9 +3,10 @@ Sessão cliente Pyro: objeto local exposto ao servidor (callbacks) + proxy remot
 
 O cliente não gere sockets nem monta mensagens de rede: obtém o stub através do
 nome lógico no Pyro Name Server (URI PYRONAME), que resolve para o daemon real
-do jogo. O método receber() no ClienteNotificador é invocado remotamente pelo
-servidor (callback RMI). A UI continua a receber dicts com "type" na fila do
-run_ui.
+do jogo. O servidor invoca remotamente métodos nomeados no ClienteNotificador
+(notificar_inicio, atualizar_estado, notificar_chat, notificar_erro) — callbacks
+RPC no mesmo espírito de uma interface RMI no cliente. A UI continua a receber
+dicts com "type" na fila do run_ui (normalização interna após cada RPC).
 """
 from __future__ import annotations
 
@@ -17,6 +18,7 @@ from typing import Any
 import Pyro5.api
 import Pyro5.server
 
+from dara.net.protocol import MessageType
 from dara.net.pyro_registry import SERVIDOR_REGISTRY_NAME, normalize_ns_host
 
 logger = logging.getLogger(__name__)
@@ -24,7 +26,10 @@ logger = logging.getLogger(__name__)
 
 @Pyro5.server.expose
 class ClienteNotificador:
-    """Objeto remoto mínimo: o servidor chama receber() para empurrar mensagens."""
+    """
+    Objecto remoto no cliente: cada notificação do servidor é uma RPC distinta
+    (nome do método = operação), alinhado ao modelo RMI com interface rica.
+    """
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
@@ -34,11 +39,31 @@ class ClienteNotificador:
         with self._lock:
             self._on_message = callback
 
-    def receber(self, mensagem: dict[str, Any]) -> None:
+    def _para_fila_ui(self, mensagem: dict[str, Any]) -> None:
         with self._lock:
             cb = self._on_message
         if cb is not None:
             cb(mensagem)
+
+    def notificar_inicio(self, mensagem_inicio: dict[str, Any]) -> None:
+        self._para_fila_ui(mensagem_inicio)
+
+    def atualizar_estado(self, estado: dict[str, Any]) -> None:
+        self._para_fila_ui(estado)
+
+    def notificar_chat(self, de_jogador: int, apelido: str, texto: str) -> None:
+        self._para_fila_ui({
+            "type": MessageType.CHAT.value,
+            "from": de_jogador,
+            "nick": apelido,
+            "text": texto,
+        })
+
+    def notificar_erro(self, texto_erro: str) -> None:
+        self._para_fila_ui({
+            "type": MessageType.ERROR.value,
+            "message": texto_erro,
+        })
 
 
 class DaraPyroSession:

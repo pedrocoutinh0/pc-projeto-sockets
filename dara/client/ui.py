@@ -1,7 +1,8 @@
 """
 Cliente Pygame — fluxo mental para debug:
 
-1) run_ui regista session.on_message(on_net). O Pyro invoca receber() no cliente,
+1) run_ui regista session.on_message(on_net). O Pyro invoca métodos remotos no
+   ClienteNotificador (notificar_inicio, atualizar_estado, …) → on_net → fila.
    que por sua vez chama on_net(msg) → msg_queue.put (nunca desenhar aqui).
 
 2) Cada frame: process_network() esvazia a fila (get_nowait) e aplica START/

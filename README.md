@@ -53,7 +53,12 @@ PYRO_LOGLEVEL=DEBUG python3 -m Pyro5.nameserver -n 0.0.0.0 -p 9091
 
 ### Callbacks (servidor do jogo → cliente)
 
-O servidor de jogo invoca remotamente `receber()` no cliente. O daemon Pyro **do cliente** escuta numa porta local (por defeito aleatória). Em LAN, se falhar, verifica firewall e portas; `--bind-host 0.0.0.0` no cliente mantém o bind em todas as interfaces (valor por defeito quando vazio).
+O servidor de jogo invoca remotamente métodos no cliente (`notificar_inicio`,
+`atualizar_estado`, `notificar_chat`, `notificar_erro`) — callbacks RPC com
+interface nomeada. O daemon Pyro **do cliente** escuta numa porta local (por
+defeito aleatória). Em LAN, se falhar, verifica firewall e portas; `--bind-host
+0.0.0.0` no cliente mantém o bind em todas as interfaces (valor por defeito
+quando vazio).
 
 ## Testes
 

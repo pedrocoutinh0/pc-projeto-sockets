@@ -2,8 +2,9 @@
 Contrato de aplicação: tipos de mensagem nos payloads (STATE, CHAT, …).
 
 Com Pyro5, estes dicts já não atravessam sockets geridos manualmente: passam a ser
-argumentos e valores das chamadas remotas e dos callbacks receber(). Mantêm-se
-para compatibilidade com GameRoom e com a UI que interpreta o campo \"type\".
+argumentos das chamadas remotas nomeadas no cliente (notificar_inicio,
+atualizar_estado, …) e dos métodos no servidor. Mantêm-se para compatibilidade
+com GameRoom e com a UI que interpreta o campo \"type\".
 """
 import json
 from enum import Enum

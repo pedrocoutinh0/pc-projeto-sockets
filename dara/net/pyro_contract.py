@@ -14,6 +14,8 @@ Contexto pedagógico (Projeto PPD — RPC/RMI):
   a implementação real está no servidor e encapsula a lógica do jogo.
 - Os jogadores não criam ligações entre si: apenas chamam o servidor, que
   centraliza o estado e notifica cada cliente via objeto remoto de callback.
+- O callback no cliente expõe vários métodos remotos nomeados (como uma
+  interface RMI no cliente), em vez de um único receber(dict) genérico.
 """
 from __future__ import annotations
 
@@ -22,10 +24,22 @@ from typing import Any, Protocol, runtime_checkable
 
 @runtime_checkable
 class NotificadorCliente(Protocol):
-    """Lado servidor: referência remota ao objeto exposto no cliente (callback)."""
+    """Lado servidor: stub para o objecto remoto exposto no cliente (callbacks RPC)."""
 
-    def receber(self, mensagem: dict[str, Any]) -> None:
-        """O servidor invoca este método remotamente para entregar STATE, CHAT, etc."""
+    def notificar_inicio(self, mensagem_inicio: dict[str, Any]) -> None:
+        """RPC: início de partida (equivalente a START)."""
+        ...
+
+    def atualizar_estado(self, estado: dict[str, Any]) -> None:
+        """RPC: novo snapshot do tabuleiro (STATE)."""
+        ...
+
+    def notificar_chat(self, de_jogador: int, apelido: str, texto: str) -> None:
+        """RPC: linha de chat de outro jogador."""
+        ...
+
+    def notificar_erro(self, texto_erro: str) -> None:
+        """RPC: erro de validação dirigido a este jogador."""
         ...
 
 
